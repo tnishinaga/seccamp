@@ -1,0 +1,79 @@
+---
+- hosts: smc2016hoku
+  tasks:
+  - name: System Update
+    sudo: yes
+    apt: update_cache=yes upgrade=dist
+  - name: Install build-utils
+    sudo: yes
+    apt: name={{ item }} update_cache=yes
+    with_items:
+      - build-essential
+      - git
+      - python3
+      - python
+      - python-dev
+      - python3-dev
+      - libzip-dev
+      - automake
+      - libncurses5
+      - libncurses5-dev
+      - gperf
+      - bison
+      - flex
+      - gawk
+      - libtool
+      - libtool-bin
+      - expat
+      - libexpat-dev
+      - texinfo
+      - help2man
+  - name: Install editors
+    sudo: yes
+    apt: name={{ item }} update_cache=yes
+    with_items:
+      - emacs
+      - vim
+  - name: Create some dir
+    file: state=directory path={{ item }}
+    with_items:
+      - "~/src/"
+      - "~/toolchain/"
+  - name: Download crosstoolng
+    get_url: 
+      url: "http://crosstool-ng.org/download/crosstool-ng/crosstool-ng-1.22.0.tar.xz"
+      sha256sum: "a8b50ddb6e651c3eec990de54bd191f7b8eb88cd4f88be9338f7ae01639b3fba"
+      dest: "~/src/"
+      force: True
+    register: downloaded_ctng
+  - name: check the ctng already exists
+    stat: path=~/src/crosstool-ng-1.22.0.tar.xz
+    register: st
+  - name: Build crosstool-ng if necessary.
+    set_fact:
+      need_to_build: "{{ st.stat.exists == False or 
+                         st.stat.size == 0 or
+                         downloaded_ctng | changed }}"
+  - name: Unpack tarball
+    shell: tar Jxvf crosstool-ng-1.22.0.tar.xz chdir=~/src/
+    when: need_to_build
+  - name: Configure and make
+    shell: ./configure --prefix=$HOME/toolchain/ && make chdir=~/src/crosstool-ng
+    when: need_to_build
+  - name: Install
+    shell: make install chdir=~/src/crosstool-ng
+    when: need_to_build
+
+  - name: export PATH
+    shell: export PATH=$PATH:$HOME/toolchain/bin
+  - name: Update bashrc for toolchain
+    lineinfile:
+      dest: ~/.bashrc
+      line: "export PATH=$PATH:$HOME/toolchain/bin" 
+      state: present
+      insertafter: EOF
+
+  # - name: Install Desktop environment
+  #   apt: name={{ item }} update_cache=yes
+  #   with_items:
+  #     - 
